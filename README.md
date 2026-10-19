@@ -63,7 +63,7 @@ The dataset consists of 14 related CSV tables:
 
 Tables are joined through identifiers such as `raceId`, `driverId`, `constructorId`, `circuitId`, and `statusId`. Primary keys, foreign keys, and join cardinality are checked explicitly.
 
-The documented snapshot contains **26,759 raw result entries**. Shared-drive consolidation produces **26,668 unique driver–race records**. These counts depend on the dataset snapshot and are validated in the notebook.
+The documented snapshot contains **26,759 raw result entries**. Shared-drive consolidation produces **26,668 unique driver–race records** for history and analysis. The modeling table includes all **26,668 combined records**, including the 85 multiple-entry groups, under the team's TA-required policy. These counts depend on the dataset snapshot and are validated in the notebook.
 
 ## Setup and execution
 
@@ -152,14 +152,14 @@ Cleaning operates on separate `_clean` DataFrames. The notebook records fingerpr
 
 ### Historical shared drives
 
-Some early races contain multiple car entries for the same driver. To construct one modeling row per driver and race, the notebook:
+Some early races contain multiple car entries for the same driver. To construct one cleaned historical row per driver and race, the notebook:
 
 1. Counts the original entries.
 2. Sums the driver's points across those entries.
 3. Retains the remaining fields from the entry with the best, lowest `positionOrder`.
 4. Uses `resultId` to break ties deterministically.
 
-This preserves the driver's best credited outcome, but the retained grid and constructor may describe a car acquired during the race rather than the original starting car. That is an important limitation of the historical representation, not a reconstruction of pre-race information.
+This preserves the driver's best credited outcome, but the retained grid and constructor may describe a car acquired during the race rather than the original starting car. All 85 combined multiple-entry rows remain included in the modeling table, following the team's TA requirement. The best-entry grid convention is a documented historical limitation; it is not an independently verified pre-race starting entry.
 
 ### Position-column comparison
 
@@ -204,7 +204,7 @@ The final **E3** configuration contains 14 inputs:
 | Experience and age | `driver_age`, `driver_prior_appearances`, `constructor_prior_recorded_races` |
 | Context | `is_home`, `year` |
 
-Recorded grid zero is not interpreted as a position ahead of pole. For modeling, it becomes the largest positive recorded grid in that race plus one, with `no_grid_slot = 1`. This is a shared fallback value, not an inferred ordering among drivers without numbered slots.
+Recorded grid zero is not interpreted as a position ahead of pole. For modeling, it becomes the largest positive grid across all raw entries in that race plus one, with `no_grid_slot = 1`. This is a shared fallback value, not an inferred ordering among drivers without numbered slots.
 
 Feature experiments compare alternatives such as 5- versus 10-race form, prior wins, reliability, circuit history, standings, and context. E3 is the documented final design choice; the notebook explicitly acknowledges that an alternative feature set can achieve a higher experimental score.
 
@@ -268,17 +268,9 @@ The primary metric is **PR-AUC**, reported using scikit-learn's **average precis
 
 Probability thresholds are selected by maximizing validation F1 over `0.05`–`0.95` in steps of `0.01`. Test results do not select the threshold or the default inference model. Accuracy is interpreted alongside the always-no-podium baseline because podiums are a minority class.
 
-### Saved example results
+### Regenerating results
 
-The following values are transcribed from the notebook's saved **section 11.5** output for the final 14-feature models. They are not a new training run or a guarantee of identical reproduction; rerun the notebook to obtain current results.
-
-| Model | Validation PR-AUC | Test PR-AUC | Test ROC-AUC | Test F1 | Test precision | Test recall |
-|---|---:|---:|---:|---:|---:|---:|
-| Neural network | 0.7423 | 0.6940 | 0.9364 | 0.6653 | 0.5830 | 0.7745 |
-| Random forest | 0.7247 | 0.7291 | 0.9403 | 0.6863 | 0.6015 | 0.7990 |
-| Logistic regression | 0.7143 | 0.6912 | 0.9334 | 0.6523 | 0.5830 | 0.7402 |
-
-In that saved run, the neural network is selected for default inference because it has the highest validation PR-AUC. The forest's higher test PR-AUC does not change the validation-based selection rule.
+Restart the kernel and Run All to regenerate results for the current code. Section 6.1 includes the complete 26,668-row population, including the 85 combined multiple-entry groups. Do not present outputs from another code version as measurements of the current pipeline. Model selection still uses validation PR-AUC, with ROC-AUC as the tie-breaker.
 
 ## Inference
 
@@ -311,7 +303,7 @@ The notebook checks that SHAP contributions reconstruct the predicted probabilit
 
 - **Historical drift:** regulations, reliability, team identities, field sizes, and qualifying formats change substantially across the dataset.
 - **Population scope:** the final historical modeling table includes Indianapolis entries and recorded non-starts. Its population is broader than a modern confirmed starting grid.
-- **Shared-drive representation:** choosing the best-finishing historical entry can make retained grid/team information depend on events after the pre-race cutoff. This limits strict prospective interpretation for those records.
+- **Shared-drive representation:** all 85 combined multiple-entry groups remain included under the team's TA-required policy. Selecting the best-finishing entry can make its retained grid depend on the outcome. This is a documented historical convention, not an independently verified reconstruction of the original starting entry.
 - **Qualifying coverage:** older records are sparse, and absent Q2/Q3 times may reflect session progression rather than random missingness.
 - **Identity changes:** constructor renaming and driver/team movement complicate historical form features.
 - **Validation reuse:** extensive feature and model comparisons reuse the validation period; small gains should not be treated as statistically proven improvements.
